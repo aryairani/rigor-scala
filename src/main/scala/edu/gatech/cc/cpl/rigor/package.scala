@@ -21,7 +21,18 @@ package object rigor {
   type SeedSet = ???
   type SeedSets = ??? // (was this supposed to be the same?)
 
-//  def rigor_obj_segments(imgFilePath: String, settings: RigorParam*) = ???
+  def rigor_obj_segments(imgFilePath: String, settings: RigorParam*) = {
+    val image: Image = ??? //
+    val t = segmenter.precompute_im_data(???, image)
+
+    // todo: compute_segments
+
+    // masks = seg_obj.cut_segs
+
+    // clear_data(seg_obj)
+
+    // write result to disk (seg_objs, masks)
+  }
 
 
 }

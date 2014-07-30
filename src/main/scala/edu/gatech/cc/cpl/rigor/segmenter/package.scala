@@ -4,6 +4,12 @@ import java.io.File
 
 import scalaz._
 import util._
+import scalaz.std.anyVal._
+import scalaz.std.vector._
+import scalaz.syntax.id._
+
+
+
 
 /**
  * Created by arya on 7/29/14.
@@ -23,65 +29,68 @@ package object segmenter {
     // Start total_seg_time, total_init_time timers
   }
 
-  def precompute_im_data(seg_obj: ???) {
+  def precompute_im_data(seg_obj: ???, img: Image): State[Timings,()] = {
     // Decide filename for saving boundaries data, according to boundaries method name
+    val boundariesSave: File = ???
 
-    val tSt: State[Timings,Unit] = setTime(im_pairwise_time) { // t_bndry
-      compute_boundaries(outputFile = ???, orig_I = ???, options = ???, preload_data = ???)
+    setTime(total_init_time) {
+      for {
+        bndry_data <- setTime(im_pairwise_time)(compute_boundaries(boundariesSave, img, ???, ???))
+
+        // todo: if debug mode, write thin, fat images to disk. see: diagnostic_methods # print_boundaries(seg_obj)
+
+        (seg, spx) <- setTime(superpixels_compute_time)(compute_superpixels(img, bndry_data, segm_params = ???))
+      // todo: if debug mode, output superpixel image. see: diagnostic_methods # spseg_overlay(seg_obj, 0.5))
+      // todo: precompute_pairwise_data_feature(seg_obj); // todo, the branch around this was commented out; should it be?
+      // todo: precompute unaryData
+      } yield ()
     }
 
-    // if debug mode, write thin, fat images to disk  (see diagnostic_methods # print_boundaries)
   }
 
-  def compute_boundaries(outputFile: File, orig_I: Image, options: ???, preload_data: ???) {
+  case class BoundaryData(thin: Image, fat: Image)
+  def compute_boundaries(outputFile: File, orig_I: Image, options: ???, preload_data: ???): BoundaryData = {
     // Choose bndry_func implementation by string name from options
     // Restart boundary timer :P
     // val (bndry_thin, bndry_fat, bndry_extra_info) = bndry_func(orig_I)
     // Stop boundary timer
     // Cache 3 outputs + timer to output file
     // return only bndry_thin, bndry_fat apparently
+    ???
   }
 
-  import scalaz.syntax.id._
+  def compute_superpixels(
+                           orig_I: Image,
+                           bndry_data: BoundaryData,
+                           segm_params: ???
+                           ): (Segmentation, Seq[SuperPixel]) = {
+    val w_seg = matlab.watershed(bndry_data.fat)
 
-  def compute_superpixels(orig_I: Image, bndry_data: (Image, ???), segm_params: ???) {
-    val (bndry_fat, _) = bndry_data
-    // start t_sp timer
+    /* fill in the boundary pixels with the neighboring segment with the closest RGB color */
+    val sp_seg = fillInSegmentation(orig_I, w_seg, matlab.watershedNoRegion, Connectivity.FourWay)
 
-    val tSt: State[Timings,(Segmentation, Seq[SuperPixel])] = setTime(superpixels_compute_time) { // t_sp
-      val w_seg = matlab.watershed(bndry_fat)
+    // replace remaining noRegion labels with the most frequently occurring (mode) superpixel in the neighborhood
+    val updateZeros: Segmentation => Segmentation = ???
 
-      /* fill in the boundary pixels with the neighboring segment with the closest RGB color */
-      val sp_seg = fillInSegmentation(orig_I, w_seg, matlab.watershedNoRegion, Connectivity.FourWay)
+    val fullyLabeled_seg = sp_seg |> updateZeros //|> toDouble /*?*/
 
-      // replace remaining noRegion labels with the most frequently occurring (mode) superpixel in the neighborhood
-      val updateZeros: Segmentation => Segmentation = ???
+    def mapFromLabels(seg: Segmentation): Map[Label, Vector[Coord]] = ???
 
-      val fullyLabeled_seg = sp_seg |> updateZeros //|> toDouble /*?*/
+    def superPixels = mapFromLabels(fullyLabeled_seg)
 
-      def mapFromLabels(seg: Segmentation): Map[Label, Vector[Coord]] = ???
+    val spInfo = superPixels.values.par.map(spCoords => {
+      val mean = colorMean(orig_I, spCoords)
+      SuperPixel(
+        orig_I, // todo do we need this?
+        spCoords.size, // sp_seg_szs(i)
+        integralMean(spCoords),                 // sp_centroids(i)   -|
+        mean,                                    // sp_mean_color(i) -|- fuse these operations?
+        colorStdDev(orig_I, mean, spCoords)
+      )
+    }).toSeq.seq
 
-      def superPixels = mapFromLabels(fullyLabeled_seg)
-
-      def superpixelSize(l: Label) = mapFromLabels(fullyLabeled_seg)(l).size
-
-      import scalaz.std.anyVal._
-      import scalaz.std.vector._
-
-      val spInfo = superPixels.values.par.map(spCoords => {
-        val mean = colorMean(orig_I, spCoords)
-        SuperPixel(
-          orig_I, // todo do we need this?
-          spCoords.size, // sp_seg_szs(i)
-          integralMean(spCoords),                 // sp_centroids(i)   -|
-          mean,                                    // sp_mean_color(i) -|- fuse these operations?
-          colorStdDev(orig_I, mean, spCoords)
-        )
-      }).toSeq.seq
-
-      //todo do we really need spseg?
-      (sp_seg, spInfo)
-    }
+    //todo do we really need spseg?
+    (sp_seg, spInfo)
   }
 
   case class SuperPixel(image: Image, area: Int, centroid: Coord, colorMean: Float3, colorStdDev: Float3)
@@ -117,11 +126,10 @@ package object segmenter {
                           ): Segmentation =
     ???
 
-  import scalaz.syntax.functor._
-  import scalaz.syntax.foldable._
-//  def region_centroids_mex[A: Monoid, F[_]:Functor, G[_]:Foldable](seg: F[G[A]]): F[A] = seg.map(_.suml)
-
-
-
+//  def region_centroids_mex[A: Monoid, F[_]:Functor, G[_]:Foldable](seg: F[G[A]]): F[A] = {
+//    import scalaz.syntax.functor._
+//    import scalaz.syntax.foldable._
+//    seg.map(_.suml)
+//  }
 }
 
