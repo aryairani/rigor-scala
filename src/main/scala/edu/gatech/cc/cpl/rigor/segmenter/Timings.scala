@@ -1,5 +1,8 @@
 package edu.gatech.cc.cpl.rigor.segmenter
 
+import edu.gatech.cc.cpl.rigor.util.timing
+import timing.Time
+
 import scalaz.State
 
 /**
@@ -46,24 +49,4 @@ object Timings {
   val energy_filter_time: Timings @> List[Time] = lensg(a => b => a.copy(energy_filter_time=b), _.energy_filter_time)
   val rand_filter_time: Timings @> List[Time] = lensg(a => b => a.copy(rand_filter_time=b), _.rand_filter_time)
   val seg_similar_filter_time: Timings @> List[Time] = lensg(a => b => a.copy(seg_similar_filter_time=b), _.seg_similar_filter_time)
-
-//  def overwriteTime[A](t: Time, l: A @> Time): A => A = l.set(_, t)
-
-  def measureTime[B](body: => B): (Time,B) = {
-    val startTime = System.currentTimeMillis()
-    val result = body
-    val stopTime = System.currentTimeMillis()
-
-    (stopTime - startTime, result)
-  }
-
-  def setTime[A,B](l: A @> Time)(body: => B): State[A,B] = {
-    val (elapsedTime, result) = measureTime(body)
-    l.assign(elapsedTime).map(_ => result)
-  }
-
-  def addTime[A,B](l: A @> List[Time])(body: => B): State[A,B] = {
-    val (elapsedTime, result) = measureTime(body)
-    l.mods(_ :+ elapsedTime).map(_ => result)
-  }
 }

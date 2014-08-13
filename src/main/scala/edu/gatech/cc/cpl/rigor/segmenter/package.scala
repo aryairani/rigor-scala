@@ -1,112 +1,221 @@
 package edu.gatech.cc.cpl.rigor
 
-import java.io.File
+import edu.gatech.cc.cpl.rigor.boundaryfuncs.BoundaryData
+import edu.gatech.cc.cpl.rigor.regression.{TreeFeatures, FeatureUnit, RegressionParams}
 
 import scalaz._
 import util._
 import scalaz.std.anyVal._
 import scalaz.std.vector._
+import scalaz.std.map._
+import scalaz.std.tuple._
 import scalaz.syntax.id._
-
-
+import scalaz.syntax.foldable._
+import timing.setTime
+import edu.gatech.cc.cpl.rigor.segmenter.Timings._
 
 
 /**
  * Created by arya on 7/29/14.
  */
-package object segmenter {
-  /** milliseconds */
-  type Time = Long
-  
-  import Timings._
-  
-  def segmenter_init(seg_obj: ???) {
-    // Initialize some global data structures (timers, num_segments)
-    // Set up paths for external code
-    // Preload data for external libraries (SketchTokens, StructEdges)
-      // override StructEdges settings: multiscale = 1, nms = 1
-    // If running hochbaum maxflow, initialize threadpool
-    // Start total_seg_time, total_init_time timers
+package object segmenter extends segmenter.types {
+
+  def precomputeImageData[B:RegressionParams](image: RGBImage, boundaryFunc: BoundaryFunc[B])
+                                             (implicit boundaryOps: BoundaryData[B]) = {
+
+    val boundaryData = boundaryFunc(image)
+    val sp = computeSuperpixels(image, boundaryOps.fat(boundaryData))
+    val edgeVals = precomputePairwiseData(sp.seg, boundaryOps.thin(boundaryData))
+    // todo: precompute unaryData
   }
 
-  def precompute_im_data(seg_obj: ???, img: Image): State[Timings,()] = {
-    // Decide filename for saving boundaries data, according to boundaries method name
-    val boundariesSave: File = ???
+  def compute_segments[B](params: SegmParams[B]): Seq[MaskImage] = ???
+/* highly busted - arya
+{
 
-    setTime(total_init_time) {
-      for {
-        bndry_data <- setTime(im_pairwise_time)(compute_boundaries(boundariesSave, img, ???, ???))
+    // the output will be num_spx long???  why
 
-        // todo: if debug mode, write thin, fat images to disk. see: diagnostic_methods # print_boundaries(seg_obj)
 
-        (seg, spx) <- setTime(superpixels_compute_time)(compute_superpixels(img, bndry_data, segm_params = ???))
-      // todo: if debug mode, output superpixel image. see: diagnostic_methods # spseg_overlay(seg_obj, 0.5))
-      // todo: precompute_pairwise_data_feature(seg_obj); // todo, the branch around this was commented out; should it be?
-      // todo: precompute unaryData
-      } yield ()
+    // foreach graph method,
+      // start timing t_seg_all
+
+    {
+
+      // prepare graphs:
+      // compute all the unary values for all seeds for each graph submethod (stored in graph_obj.graph_unaries_all
+      // also compute the final binary capacities between superpixel pairs (stored in graph_obj.edge_vals)
+
+      /**
+       * graphprocessor handles the parametric min-cut/maxflow (graph-cuts on Ising model) to produce
+       * binary segments.  In the constructor, it prepares a data structure for min-cut
+       */
+      val gp_obj = graphProcessor(graph_obj)
+
+      /** function where GraphProcessor computes min-cut for all the graph submethods */
+      val currentSegments = generate_mincut_segments(gp_obj)
+
+      /** here the Segmenter filters the output min-cut segments produced by GraphProcessor */
+      currentSegments2 = filter_segments(seg_obj, gp_obj, graph_idx, currentSegments)
+
+      val curr_cut_segs = size(currentSegments2.cutSegs,2)
+      seg_obj.num_segs.after_clustering_FINAL += curr_cut_segs
+
+      println(s"FinalNumber of Segments: $curr_cut_segs")
+
+      seg_obj.cutSegs += currentSegments2.cutSegs
+
+      case class MetaInfo(sols_to_unary_mapping: ???,
+                          lambdas: ???,
+                          mincut_vals: ???,
+                          extra_cut_info: ???,
+                          seg_mapping_final_to_orig: ???,
+                          energies: ???)
+
+      seg_obj.metaCutSegsInfo += currSegs.segsMetaInfo
+
+//    total_computing_segs_time
+    }
+
+    /** converting superpixel segments into full image segments */
+    ??? convert_masks(???)
+  }
+
+*/
+
+  def generate_sp_img_frame(x : ???, frameWidth: Int = 1): FrameSet = ???
+
+  def precompute_seeds(): Seeds  = ???
+
+  /** "Precompute anything related to pairwise potentials."
+    * "Trees seem to always help"
+    */
+  def precomputePairwiseData[B](segmentation: Segmentation,
+                                          boundary: BoundaryImage)
+                                         (implicit treeParams: RegressionParams[B]): EdgeVals =
+  {
+
+    def generateNeighborData(seg: Segmentation): NeighborData = ???
+
+    /** Adjust boundary to coincide exactly with superpixel borders */
+    // "shift all bndry values up by the min if any below 0"
+    def adjustBoundaries(boundary: BoundaryImage, seg: Segmentation): BoundaryImage = ???
+
+    def evalTree(features: TreeFeatures): FeatureUnit = {
+      treeParams.treeWeight.map { c =>
+        import treeParams.f0
+        import c.{ρ, tree}
+
+        f0 + ρ * tree.eval(features)
+      }.sum
+    }
+
+    generateSuperpixelFeatures( // features
+      computeBoundaryStrengths( // boundaryStrength
+        adjustBoundaries(boundary, segmentation),
+        generateNeighborData(segmentation) // superpixel boundary info
+      )
+    ) map {
+      /* Sometimes instead of features, we just get a static value back --- `the_rest` */
+      case Left(staticTerm) => staticTerm
+      /* otherwise run the features through the regression tree */
+      case Right(spFeatures) => evalTree(spFeatures.toFeatureVector) max 0
     }
 
   }
 
-  case class BoundaryData(thin: Image, fat: Image)
-  def compute_boundaries(outputFile: File, orig_I: Image, options: ???, preload_data: ???): BoundaryData = {
-    // Choose bndry_func implementation by string name from options
-    // Restart boundary timer :P
-    // val (bndry_thin, bndry_fat, bndry_extra_info) = bndry_func(orig_I)
-    // Stop boundary timer
-    // Cache 3 outputs + timer to output file
-    // return only bndry_thin, bndry_fat apparently
-    ???
+  type StaticTerm = FeatureUnit
+
+  /** Each SP pair has a corresponding set of BP pairs
+    * For each SP pair, compute the intensity values for
+    *   the 10,20,...,100th percentile for the set of BP pairs
+    *
+    * Output is percentiles, count, and mean for each SP pair.
+    */
+  def generateSuperpixelFeatures(neighborData: NeighborDataIntensity): Vector[Either[StaticTerm,SuperpixelFeatures]] = {
+
+    /** return the 10th, 20th, ... 100th percentile boundary strength based on input */
+    def gen10Percentiles(values: Vector[BoundaryStrength]): IndexedSeq[BoundaryStrength] = {
+      val sorted = values.sorted.toIndexedSeq
+      val percentiles = (10 to 100 by 10) map { p =>
+        val fractionalIdx = (sorted.length * (p / 100.0))
+        val ceilIdx = fractionalIdx.ceil.toInt
+        sorted(ceilIdx.clamp(0,sorted.length))
+      }
+      percentiles
+    }
+
+    /** compute the percentiles and a couple other features */
+    def gen1(values: Vector[BoundaryStrength]) =
+      SuperpixelFeatures(gen10Percentiles(values), values.length, integralMean(values))
+
+    /** some edgelets are `selected`; we generate regression tree features for them.
+      * the non-selected edgelets (`the rest`) just have statically assigned weights, I guess? */
+    neighborData.edgelets.values.map(boundaryPairs => 
+      if (???) // the selection criteria
+        Right( gen1(boundaryPairs.values.toVector) )
+      else {
+        Left(??? : StaticTerm)
+      }
+    ).toVector
   }
 
-  def compute_superpixels(
-                           orig_I: Image,
-                           bndry_data: BoundaryData,
-                           segm_params: ???
-                           ): (Segmentation, Seq[SuperPixel]) = {
-    val w_seg = matlab.watershed(bndry_data.fat)
+  def computeBoundaryStrengths(image: BoundaryImage, neighborData: NeighborData): NeighborDataIntensity = {
 
-    /* fill in the boundary pixels with the neighboring segment with the closest RGB color */
-    val sp_seg = fillInSegmentation(orig_I, w_seg, matlab.watershedNoRegion, Connectivity.FourWay)
+    def pixelAt(i: Int) = {
+      val index: (Int, Int) = image.rowColumnFromLinearIndex(i)
+      image.valueAt(index._1,index._2)
+    }
 
-    // replace remaining noRegion labels with the most frequently occurring (mode) superpixel in the neighborhood
-    val updateZeros: Segmentation => Segmentation = ???
+    def boundaryStrength(bp: BoundaryPair): BoundaryStrength = {
+      (Math.abs(pixelAt(bp.p1.i) - pixelAt(bp.p2.i)) * 255).toShort
+    }
 
-    val fullyLabeled_seg = sp_seg |> updateZeros //|> toDouble /*?*/
-
-    def mapFromLabels(seg: Segmentation): Map[Label, Vector[Coord]] = ???
-
-    def superPixels = mapFromLabels(fullyLabeled_seg)
-
-    val spInfo = superPixels.values.par.map(spCoords => {
-      val mean = colorMean(orig_I, spCoords)
-      SuperPixel(
-        orig_I, // todo do we need this?
-        spCoords.size, // sp_seg_szs(i)
-        integralMean(spCoords),                 // sp_centroids(i)   -|
-        mean,                                    // sp_mean_color(i) -|- fuse these operations?
-        colorStdDev(orig_I, mean, spCoords)
+    NeighborDataIntensity(
+      neighborData.edgelets.mapValues(boundaryPairs =>
+        boundaryPairs.map(bp => bp -> boundaryStrength(bp)).toMap
       )
-    }).toSeq.seq
-
-    //todo do we really need spseg?
-    (sp_seg, spInfo)
+    )
   }
 
-  case class SuperPixel(image: Image, area: Int, centroid: Coord, colorMean: Float3, colorStdDev: Float3)
+  def computeSuperpixels(image: RGBImage,
+                          boundaryFat: BoundaryImage): SuperPixelData = {
 
-  /** 0 = no unique region; 1 = region 1, ... */
-  type Label = Int
-  type LabelMatrix = Array[Array[Label]]
-  type Segmentation = LabelMatrix
-//  case class Segmentation(image: LabelMatrix, labels: Seq[Label])
+    /* replace remaining noRegion labels with the most frequently occurring (mode) superpixel in the neighborhood */
+    def replaceZerosWithMode(seg: Segmentation): Segmentation = ??? // todo
 
+    def pixelCoordsByLabel(seg: Segmentation): Map[SuperpixelIdx, Vector[Coord]] = {
+      import scalaz.std.iterable.iterableSubtypeFoldable
+      seg.activeIterator.toIterable.map {
+        case (coord, label) => Map(label -> Vector(coord))
+      }.suml
+    }
 
-  sealed trait Connectivity
-  object Connectivity {
-    case object EightWay extends Connectivity
-    case object FourWay extends Connectivity
+    val segmentation: Segmentation =
+      boundaryFat |>
+        matlab.watershed |>
+        (fillInSegmentation(image, _, matlab.watershedNoRegion, Connectivity.FourWay)) |>
+        replaceZerosWithMode
+
+    assert(segmentation.forall(_ != matlab.watershedNoRegion)) // none are unlabeled
+
+    /* for each superpixel, find the area, centroid, color mean, and color stddev */
+    val spInfo: IndexedSeq[SuperPixel] =
+      pixelCoordsByLabel(segmentation).values.par.map {
+        coords => {
+          val mean = colorMean(image, coords)
+          SuperPixel(
+            coords.size, // area
+            integralMean(coords), // centroid
+            mean, // color mean
+            colorStdDev(image, mean, coords)
+          )
+        }
+      }.toIndexedSeq
+
+    /* return the segmentation and the superpixel statistics */
+    SuperPixelData(segmentation, spInfo)
   }
+
   /** Fills in the unlabeled pixels of a segmentation 'seg'.  Those pixels
     * that are pixels with a segmentation label `noRegion` do not belong to any
     * valid region.  Fill them in by associating them with the neighboring
@@ -118,18 +227,12 @@ package object segmenter {
     * used.
     */
   // ToDo (see fill_in_segmentation.m)
-  def fillInSegmentation(
-                          img: Image,
-                          watershed: Segmentation,
-                          noRegion: Label = matlab.watershedNoRegion,
-                          connectivity: Connectivity = Connectivity.EightWay
+  def fillInSegmentation(img: RGBImage,
+                         watershed: Segmentation,
+                         noRegion: SuperpixelIdx = matlab.watershedNoRegion,
+                         connectivity: Connectivity = Connectivity.EightWay
                           ): Segmentation =
     ???
 
-//  def region_centroids_mex[A: Monoid, F[_]:Functor, G[_]:Foldable](seg: F[G[A]]): F[A] = {
-//    import scalaz.syntax.functor._
-//    import scalaz.syntax.foldable._
-//    seg.map(_.suml)
-//  }
 }
 

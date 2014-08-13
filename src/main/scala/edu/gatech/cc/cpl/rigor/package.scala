@@ -1,29 +1,19 @@
 package edu.gatech.cc.cpl
 
+import java.io.File
+
+import breeze.linalg.{DenseVector, DenseMatrix}
+import edu.gatech.cc.cpl.rigor.boundaryfuncs.{StructEdges, BoundaryData}
+import edu.gatech.cc.cpl.rigor.regression.FeatureUnit
+
 /**
  * Created by arya on 6/30/14.
  */
-package object rigor {
-  type ??? = Nothing
+package object rigor extends types {
 
-  type Masks = ???
-  type SegObj = ???
-  type Time = ???
-  type Image = { val pixelByRowCol: Coord => Color }
+  def rigor_obj_segments(image: RGBImage, settings: Param*) = {
 
-  type Color = Float3
-  type Float3 = (Double,Double,Double)
-
-  type Coord = (Int,Int)
-
-  type SuperpixelData = ???
-  type PixelSets = ???
-  type SeedSet = ???
-  type SeedSets = ??? // (was this supposed to be the same?)
-
-  def rigor_obj_segments(imgFilePath: String, settings: RigorParam*) = {
-    val image: Image = ??? //
-    val t = segmenter.precompute_im_data(???, image)
+    val t = segmenter.precomputeImageData(image, new StructEdges())(???,???)
 
     // todo: compute_segments
 

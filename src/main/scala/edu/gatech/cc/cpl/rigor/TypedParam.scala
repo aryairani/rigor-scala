@@ -2,18 +2,18 @@ package edu.gatech.cc.cpl.rigor
 
 import java.io.File
 
-import edu.gatech.cc.cpl.rigor.boundaryfuncs.{StructEdges, Gb, BoundaryFunc}
+import edu.gatech.cc.cpl.rigor.boundaryfuncs._
 import edu.gatech.cc.cpl.rigor.graphmethod._
-import edu.gatech.cc.cpl.rigor.params.MaxflowMethod
-import edu.gatech.cc.cpl.rigor.params.maxflowMethod.{hochbaum, multiseed}
-import edu.gatech.cc.cpl.rigor.superpixelmethods.{sp_seeds_caller, felzenszwalb_seeds_caller}
+import edu.gatech.cc.cpl.rigor.maxflow.{MaxflowMethod,multiseed}
+import edu.gatech.cc.cpl.rigor.superpixelmethods.sp_seeds_caller
 
 import scalaz.@>
 
 /**
  * Created by arya on 6/30/14.
  */
-abstract case class RigorParam[+A](default: A) {
+trait Param
+abstract case class TypedParam[+A](default: A) extends Param {
   def apply: A
 }
 
@@ -36,15 +36,13 @@ abstract case class RigorParam[+A](default: A) {
  *                      These are iterated over in Segmenter.compute_segments.
  *
  */
-case class SegmParams(
+case class SegmParams[B:BoundaryData](
                        pmc_num_lambdas: Int,
                        pmc_maxflow_method: MaxflowMethod,
-                       boundaries_method: BoundaryFunc,
+                       boundaries_method: BoundaryFunc[B],
                        filter_min_seg_pixels: Int,
                        filter_max_rand: Int,
-                       graph_methods: Seq[GraphMethod_]//,
-//                       graph_sub_methods_seeds_idx: ???,
-//                       graph_seed_gen_method: Seq[GraphSeedGenMethod],
+                       graph_methods: Seq[GraphMethod]
                        )
 
 /**
@@ -53,36 +51,35 @@ case class SegmParams(
  * @param submethods
  * @param seeds
  */
-case class GraphMethodConfig(method: GraphMethod_, submethods: ???, seeds: (Int,Int))
+case class GraphMethodConfig(method: GraphMethod, submethods: ???, seeds: (Int,Int))
 
 object SegmParams {
 
-
-  val default = {
-    val seedgen1 = sp_img_grid((5,5),(40,40))
-    val seedgen2 = sp_clr_seeds((5,5),(15,15), felzenszwalb_seeds_caller())
-
-    SegmParams(
-      pmc_num_lambdas = 20,
-      pmc_maxflow_method = hochbaum,
-      boundaries_method = Gb,
-      filter_min_seg_pixels = 100,
-      filter_max_rand = 5000,
-      graph_methods = Seq(
-        new UniformGraph(
-          submethods = Seq(UniformGraph.Internal(seedgen1), UniformGraph.External(seedgen1)),
-          graphSeedFrameWeight = 1000,
-          pairwise = PairwiseWeights(1, 1, 1e-3)
-        ),
-        new ColorGraph(
-          submethods = Seq(ColorGraph.Internal(seedgen2), ColorGraph.External(seedgen2)),
-          graphSeedFrameWeight = 1000,
-          graph_unary_exp_scale = 0.07,
-          pairwise = PairwiseWeights(1.5, 1, 4e-3)
-        )
-      )
-    )
-  }
+//  val default: SegmParams[GbInfo] = {
+//    val seedgen1 = sp_img_grid((5,5),(40,40))
+//    val seedgen2 = sp_clr_seeds((5,5),(15,15), felzenszwalb_seeds_caller())
+//
+//    SegmParams(
+//      pmc_num_lambdas = 20,
+//      pmc_maxflow_method = hochbaum,
+//      boundaries_method = Gb,
+//      filter_min_seg_pixels = 100,
+//      filter_max_rand = 5000,
+//      graph_methods = Seq(
+//        new UniformGraph(
+//          submethods = Seq(UniformGraph.Internal(seedgen1), UniformGraph.External(seedgen1)),
+//          graphSeedFrameWeight = 1000,
+//          pairwise = PairwiseWeights(1, 1, 1e-3)
+//        ),
+//        new ColorGraph(
+//          submethods = Seq(ColorGraph.Internal(seedgen2), ColorGraph.External(seedgen2)),
+//          graphSeedFrameWeight = 1000,
+//          graph_unary_exp_scale = 0.07,
+//          pairwise = PairwiseWeights(1.5, 1, 4e-3)
+//        )
+//      )
+//    )
+//  }
 
   val structEdges = {
     val seedgen1 = sp_img_grid(
@@ -94,24 +91,27 @@ object SegmParams {
       graph_seed_region_size = (50,50),
       sp_seeds_caller
     )
-    List(
-      pmc_maxflow_method := multiseed,
-      boundaries_method := StructEdges,
-      graph_methods := Seq(
-        new UniformGraphFuxin(
+    SegmParams(
+      pmc_num_lambdas = 20,
+      pmc_maxflow_method = multiseed,
+      boundaries_method = StructEdges(),
+      filter_min_seg_pixels = 100,
+      filter_max_rand = 5000,
+      graph_methods = Seq(
+        new UniformGraph(
           submethods = Seq(
-            UniformGraphFuxin.Internal(seedgen1),
-            UniformGraphFuxin.External(seedgen1),
-            UniformGraphFuxin.External2(seedgen1)
+            UniformGraph.Internal(seedgen1),
+            UniformGraph.External(seedgen1),
+            UniformGraph.External2(seedgen1)
           ),
           graphSeedFrameWeight = 1000,
           pairwise = PairwiseWeights(3.5, 1, 1e-3)
         ),
-        new ColorGraphFuxin(
+        new ColorGraph(
           submethods = Seq(
-            ColorGraphFuxin.Internal(seedgen1),
-            ColorGraphFuxin.External(seedgen1),
-            ColorGraphFuxin.External2(seedgen1)
+            ColorGraph.Internal(seedgen2),
+            ColorGraph.External(seedgen2),
+            ColorGraph.External2(seedgen2)
           ),
           graphSeedFrameWeight = 1100,
           graph_unary_exp_scale = 0.5,
@@ -119,13 +119,16 @@ object SegmParams {
         )
       )
     )
-
   }
 
-  import scalaz.Lens.lensg
-  val pmc_maxflow_method: SegmParams @> MaxflowMethod = lensg(a => b => a.copy(pmc_maxflow_method=b), _.pmc_maxflow_method)
-  val boundaries_method: SegmParams @> BoundaryFunc = lensg(a => b => a.copy(boundaries_method=b), _.boundaries_method)
-  val graph_methods: SegmParams @> Seq[GraphMethod_] = lensg(a => b => a.copy(graph_methods=b), _.graph_methods)
+//  import scalaz.syntax.traverse._
+//  import scalaz.std.list._
+//  val altered = structEdges.sequenceU.exec(default)
+//
+//  import scalaz.Lens.lensg
+//  def pmc_maxflow_method[E]: SegmParams[E] @> MaxflowMethod = lensg(a => b => a.copy(pmc_maxflow_method=b), _.pmc_maxflow_method)
+//  def boundaries_method[E]: SegmParams[E] @> BoundaryFunc[E] = lensg(a => b => a.copy(boundaries_method=b), _.boundaries_method)
+//  def graph_methods[E]: SegmParams[E] @> Seq[GraphMethod_] = lensg(a => b => a.copy(graph_methods=b), _.graph_methods)
 
 }
 

@@ -1,6 +1,6 @@
 package edu.gatech.cc.cpl.rigor.matlab.images.colorspaces
 
-import edu.gatech.cc.cpl.rigor.Image
+import edu.gatech.cc.cpl.rigor.RGBImage
 
 /**
  * Created by arya on 7/29/14.
@@ -16,6 +16,6 @@ trait ApplyCForm {
    */
 //  def applycform(a: Image): Image
 
-  def srgb2lab(a: Image): Image = ???
+  def srgb2lab(a: RGBImage): RGBImage = ???
 
 }

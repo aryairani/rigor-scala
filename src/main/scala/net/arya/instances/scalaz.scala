@@ -26,4 +26,9 @@ object scalazInstances {
     def foldRight[A, B](fa: ParSet[A], z: => B)(f: (A, => B) => B): B =
       fa.foldRight(z)(f(_,_))
   }
+
+  implicit val doubleMonoid = new Monoid[Double] {
+    def zero = 0D
+    def append(a: Double, b: ⇒ Double) = a + b
+  }
 }

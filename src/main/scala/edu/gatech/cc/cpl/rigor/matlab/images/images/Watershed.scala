@@ -11,7 +11,7 @@ trait Watershed {
     *
     * default connectivity: ones(repmat(3,1,ndims(A)))
     * */
-  def watershed(image: Image): Segmentation = ???
-  val watershedNoRegion: Int = 0
+  def watershed(image: BoundaryImage): Segmentation = ???
+  val watershedNoRegion = SuperpixelIdx(0)
 
 }

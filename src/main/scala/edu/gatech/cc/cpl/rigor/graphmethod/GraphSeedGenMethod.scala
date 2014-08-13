@@ -1,7 +1,7 @@
 package edu.gatech.cc.cpl.rigor.graphmethod
 
+import edu.gatech.cc.cpl.rigor.{???, SeedSets}
 import edu.gatech.cc.cpl.rigor.superpixelmethods.SuperpixelMethod
-import edu.gatech.cc.cpl.rigor.{SeedSets, SegObj}
 
 /**
  * Created by arya on 7/1/14.
@@ -9,7 +9,7 @@ import edu.gatech.cc.cpl.rigor.{SeedSets, SegObj}
 trait GraphSeedGenMethod {
   val graph_seed_nums: (Int,Int)
   val graph_seed_region_size: (Int,Int)
-  def apply(s: SegObj): SeedSets = ???
+  def apply(s: ???/*SegObj*/): SeedSets = ???
 }
 case class sp_img_grid(graph_seed_nums: (Int,Int),
                        graph_seed_region_size: (Int,Int)
